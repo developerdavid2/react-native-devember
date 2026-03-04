@@ -5,21 +5,19 @@ import {
 } from "@react-navigation/native";
 import { StatusBar } from "expo-status-bar";
 import "react-native-reanimated";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 
-import DayItem from "@/components/core/day-item";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { Inter_900Black, useFonts } from "@expo-google-fonts/inter";
+import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
-import { FlatList, StyleSheet, View } from "react-native";
 
 export const unstable_settings = {
   anchor: "(tabs)",
 };
 
 SplashScreen.preventAutoHideAsync();
-
-const days = Array.from({ length: 24 });
 
 export default function RootLayout() {
   const [loaded, error] = useFonts({
@@ -28,7 +26,7 @@ export default function RootLayout() {
   const colorScheme = useColorScheme();
 
   useEffect(() => {
-    if (loaded || !error) {
+    if (loaded || error) {
       SplashScreen.hideAsync();
     }
   }, [loaded, error]);
@@ -37,35 +35,15 @@ export default function RootLayout() {
     return null;
   }
   return (
-    <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
-      {/* <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-      </Stack> */}
-      <View style={styles.container}>
-        <FlatList
-          data={days}
-          contentContainerStyle={styles.content}
-          columnWrapperStyle={styles.column}
-          numColumns={2}
-          renderItem={({ item, index }) => <DayItem day={index} />}
-        />
-      </View>
-      <StatusBar style="auto" />
-    </ThemeProvider>
+    <SafeAreaProvider>
+      <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+        <Stack>
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="(days)" options={{ headerShown: false }} />
+        </Stack>
+
+        <StatusBar style="auto" />
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#fff",
-  },
-  content: {
-    gap: 10,
-    padding: 10,
-  },
-  column: {
-    gap: 10,
-  },
-});

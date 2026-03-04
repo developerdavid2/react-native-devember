@@ -1,14 +1,17 @@
+import { Link, RelativePathString } from "expo-router";
 import React from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text } from "react-native";
 
 interface DayItemProps {
   day: number;
 }
 export default function DayItem({ day }: DayItemProps) {
   return (
-    <View style={styles.box}>
-      <Text style={styles.text}>{day + 1}</Text>
-    </View>
+    <Link href={`/(days)/day${day + 1}` as RelativePathString} asChild>
+      <Pressable style={styles.box}>
+        <Text style={styles.text}>{day + 1}</Text>
+      </Pressable>
+    </Link>
   );
 }
 
@@ -17,7 +20,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#F9EDE3",
     flex: 1,
     aspectRatio: 1,
-
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: "#9b4521",
     borderRadius: 20,
