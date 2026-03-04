@@ -8,17 +8,34 @@ import "react-native-reanimated";
 
 import DayItem from "@/components/core/day-item";
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import { Inter_900Black, useFonts } from "@expo-google-fonts/inter";
+import * as SplashScreen from "expo-splash-screen";
+import { useEffect } from "react";
 import { FlatList, StyleSheet, View } from "react-native";
 
 export const unstable_settings = {
   anchor: "(tabs)",
 };
 
+SplashScreen.preventAutoHideAsync();
+
 const days = Array.from({ length: 24 });
 
 export default function RootLayout() {
+  const [loaded, error] = useFonts({
+    Inter: Inter_900Black,
+  });
   const colorScheme = useColorScheme();
 
+  useEffect(() => {
+    if (loaded || !error) {
+      SplashScreen.hideAsync();
+    }
+  }, [loaded, error]);
+
+  if (!loaded && !error) {
+    return null;
+  }
   return (
     <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
       {/* <Stack>
