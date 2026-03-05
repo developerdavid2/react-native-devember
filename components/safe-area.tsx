@@ -40,7 +40,7 @@ export default function SafeArea({
         style,
       ]}
     >
-      <StatusBar style={isDark ? "light" : "dark"} />
+      <StatusBar />
       {children}
     </View>
   );
