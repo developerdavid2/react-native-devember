@@ -1,7 +1,7 @@
 // settings.json
 {
   "editor.codeActionsOnSave": {
-    "source.fixAll.eslint": true,
-    "source.organizeImports": false // 👈 turn this off
+    "source.fixAll.eslint": "explicit",
+    "source.organizeImports": "never"
   }
 }
