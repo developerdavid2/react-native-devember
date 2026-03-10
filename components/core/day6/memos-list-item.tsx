@@ -3,6 +3,7 @@ import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
 import { useEffect, useRef } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import Animated, {
+  interpolate,
   useAnimatedStyle,
   useSharedValue,
 } from "react-native-reanimated";
@@ -10,56 +11,54 @@ import Animated, {
 interface MemoItemProps {
   uri: string;
   activeMemoUri: string | null;
+  metering: number[];
   setActiveMemoUri: (uri: string | null) => void;
 }
 
 const SPEEDS = [1, 1.5, 2];
+const NUM_LINES = 50;
 
-const MemoItem = ({ uri, activeMemoUri, setActiveMemoUri }: MemoItemProps) => {
+const MemoItem = ({
+  uri,
+  activeMemoUri,
+  setActiveMemoUri,
+  metering,
+}: MemoItemProps) => {
   const player = useAudioPlayer({ uri });
   const status = useAudioPlayerStatus(player);
   const speedIndex = useRef(0);
   const progressShared = useSharedValue(0);
   const isActive = activeMemoUri === uri;
 
-  // 1. Initialize Player Settings + preload duration
   useEffect(() => {
     if (player) {
       player.shouldCorrectPitch = true;
       player.volume = 1.0;
-      player.seekTo(0); // forces metadata load — duration available immediately
+      player.seekTo(0);
     }
   }, [player]);
 
-  // 2. If another memo starts playing, pause this one
   useEffect(() => {
     if (!isActive && status.playing) {
       player.pause();
     }
   }, [isActive, player, status.playing]);
 
-  // 3. Clean Reset Logic
   useEffect(() => {
     if (status.playbackState === "ended") {
       player.pause();
       player.seekTo(0);
-      if (isActive) {
-        setActiveMemoUri(null);
-      }
+      if (isActive) setActiveMemoUri(null);
     }
   }, [status.playbackState, player, isActive, setActiveMemoUri]);
 
   useEffect(() => {
     if (!status.playing) return;
-
     const interval = setInterval(() => {
-      const current = player.currentTime ?? 0; // read directly from player
+      const current = player.currentTime ?? 0;
       const duration = player.duration ?? 0;
-      if (duration > 0) {
-        progressShared.value = current / duration;
-      }
-    }, 16); // ~60fps
-
+      if (duration > 0) progressShared.value = current / duration;
+    }, 16);
     return () => clearInterval(interval);
   }, [player.currentTime, player.duration, progressShared, status.playing]);
 
@@ -76,15 +75,26 @@ const MemoItem = ({ uri, activeMemoUri, setActiveMemoUri }: MemoItemProps) => {
     player.currentTime,
     progressShared,
   ]);
-  // 4. Playback Calculations
+
   const durationSeconds = status.duration ?? 0;
   const currentSeconds = status.currentTime ?? 0;
+  const progress = durationSeconds > 0 ? currentSeconds / durationSeconds : 0;
+
+  const lines = Array.from({ length: NUM_LINES }, (_, i) => {
+    const meteringIndex = Math.floor((i * metering.length) / NUM_LINES);
+    const nextMeteringIndex = Math.ceil(
+      ((i + 1) * metering.length) / NUM_LINES,
+    );
+    const values = metering.slice(meteringIndex, nextMeteringIndex);
+    return values.length > 0
+      ? values.reduce((sum, a) => sum + a, 0) / values.length
+      : -50; // fallback for old recordings
+  });
 
   const animateIndicatorStyle = useAnimatedStyle(() => ({
-    left: `${progressShared.value * 100}%`, //  no withTiming needed — already smooth
+    left: `${progressShared.value * 100}%`,
   }));
 
-  // 5. Interaction Handlers
   const handlePlayPause = () => {
     if (status.playing) {
       player.pause();
@@ -96,11 +106,8 @@ const MemoItem = ({ uri, activeMemoUri, setActiveMemoUri }: MemoItemProps) => {
 
   const handleSpeedToggle = () => {
     speedIndex.current = (speedIndex.current + 1) % SPEEDS.length;
-    const newSpeed = SPEEDS[speedIndex.current];
-    player.setPlaybackRate(newSpeed, "high");
+    player.setPlaybackRate(SPEEDS[speedIndex.current], "high");
   };
-
-  const currentSpeed = SPEEDS[speedIndex.current];
 
   const formatDuration = (seconds: number) => {
     const totalSeconds = Math.floor(Math.max(0, seconds));
@@ -111,21 +118,35 @@ const MemoItem = ({ uri, activeMemoUri, setActiveMemoUri }: MemoItemProps) => {
 
   return (
     <View style={styles.container}>
-      {/* Play / Pause button */}
       <TouchableOpacity onPress={handlePlayPause} style={styles.playButtonMain}>
         {status.playing ? (
-          <FontAwesome5 name={"pause"} size={20} color="gray" />
+          <FontAwesome5 name="pause" size={20} color="gray" />
         ) : (
-          <FontAwesome5 name={"play"} size={20} color="gray" />
+          <FontAwesome5 name="play" size={20} color="gray" />
         )}
       </TouchableOpacity>
 
       <View style={styles.playbackContainer}>
-        {/* Progress Track */}
-        <View style={styles.playbackBackground} />
+        <View style={styles.wave}>
+          {lines.map((db, index) => (
+            <View
+              key={index}
+              style={[
+                styles.waveLine,
+                {
+                  height: interpolate(db, [-50, -10], [5, 50], "clamp"),
+                  backgroundColor:
+                    progress > index / NUM_LINES ? "#3B82F6" : "gainsboro",
+                },
+              ]}
+            />
+          ))}
+        </View>
+
         <Animated.View
           style={[styles.playbackIndicator, animateIndicatorStyle]}
         />
+
         <Text style={styles.durationText}>
           {status.playing
             ? formatDuration(currentSeconds)
@@ -133,9 +154,8 @@ const MemoItem = ({ uri, activeMemoUri, setActiveMemoUri }: MemoItemProps) => {
         </Text>
       </View>
 
-      {/* Speed toggle */}
       <TouchableOpacity style={styles.speedButton} onPress={handleSpeedToggle}>
-        <Text style={styles.speedText}>{currentSpeed}x</Text>
+        <Text style={styles.speedText}>{SPEEDS[speedIndex.current]}x</Text>
       </TouchableOpacity>
     </View>
   );
@@ -164,14 +184,9 @@ const styles = StyleSheet.create({
   },
   playbackContainer: {
     flex: 1,
-    height: 30,
+    height: 60,
     justifyContent: "center",
     position: "relative",
-  },
-  playbackBackground: {
-    height: 4,
-    backgroundColor: "#E5E7EB",
-    borderRadius: 2,
   },
   playbackIndicator: {
     width: 12,
@@ -181,10 +196,19 @@ const styles = StyleSheet.create({
     position: "absolute",
     transform: [{ translateX: -6 }],
   },
+  wave: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+  },
+  waveLine: {
+    flex: 1,
+    borderRadius: 20,
+  },
   durationText: {
     position: "absolute",
-    left: -5,
-    bottom: -10,
+    right: 0,
+    bottom: 0,
     color: "gray",
     fontSize: 11,
   },

@@ -17,36 +17,44 @@ import {
   View,
 } from "react-native";
 import Animated, {
+  interpolate,
   useAnimatedStyle,
+  useSharedValue,
   withTiming,
 } from "react-native-reanimated";
 
+type Memo = {
+  uri: string;
+  metering: number[];
+};
+
 export default function MemosScreen() {
-  const [memos, setMemos] = useState<string[]>([]);
+  const [memos, setMemos] = useState<Memo[]>([]);
   const [activeMemoUri, setActiveMemoUri] = useState<string | null>(null);
+  const [audioMetering, setAudioMetering] = useState<number[]>([]);
 
-  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
-  const recorderState = useAudioRecorderState(audioRecorder);
+  const audioRecorder = useAudioRecorder({
+    ...RecordingPresets.HIGH_QUALITY,
+    isMeteringEnabled: true,
+  });
+  const recorderState = useAudioRecorderState(audioRecorder, 50);
 
-  // 1. Initial Setup: Permissions & Directory Check
+  const metering = useSharedValue(-160);
+  const isRecordingValue = useSharedValue(false);
+
   useEffect(() => {
     (async () => {
-      // Ensure the "Audio" directory exists so recording doesn't crash
       const dir = FileSystem.cacheDirectory + "Audio/";
       const dirInfo = await FileSystem.getInfoAsync(dir);
       if (!dirInfo.exists) {
         await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
       }
-
       await listRecordings();
-
       const status = await AudioModule.requestRecordingPermissionsAsync();
       if (!status.granted) {
         Alert.alert("Permission denied", "Microphone access is required.");
         return;
       }
-
-      // Initial mode: Playback only
       await setAudioModeAsync({
         playsInSilentMode: true,
         allowsRecording: false,
@@ -54,49 +62,65 @@ export default function MemosScreen() {
     })();
   }, []);
 
-  // 2. The Fixed Record Function
+  useEffect(() => {
+    if (recorderState.metering !== undefined && recorderState.metering > -160) {
+      metering.value = recorderState.metering;
+      setAudioMetering((cur) => [...cur, recorderState.metering!]);
+    }
+    isRecordingValue.value = recorderState.isRecording;
+  }, [
+    recorderState.metering,
+    recorderState.isRecording,
+    isRecordingValue,
+    metering,
+  ]);
+
   const record = async () => {
     try {
-      // Stop any active player to release audio focus
+      setAudioMetering([]);
       setActiveMemoUri(null);
-
-      // Switch to Recording Mode
       await setAudioModeAsync({
         allowsRecording: true,
         playsInSilentMode: true,
       });
-
-      await audioRecorder.prepareToRecordAsync();
+      await audioRecorder.prepareToRecordAsync({
+        ...RecordingPresets.HIGH_QUALITY,
+        isMeteringEnabled: true,
+      });
       audioRecorder.record();
     } catch (err) {
       console.error("Recording failed to start:", err);
-      // Fallback: reset mode so speakers work again
       await setAudioModeAsync({ allowsRecording: false });
     }
   };
 
-  // 3. The Fixed Stop Function
   const stopRecording = async () => {
     try {
       await audioRecorder.stop();
+      const uri = audioRecorder.uri;
+      const currentMetering = [...audioMetering];
+      metering.value = -160;
 
-      // CRITICAL: Switch back to playback mode so the "Play" buttons work
       await setAudioModeAsync({
         allowsRecording: false,
         playsInSilentMode: true,
       });
 
-      await listRecordings();
+      if (uri) {
+        setMemos((existing) => [
+          { uri, metering: currentMetering },
+          ...existing,
+        ]);
+      }
     } catch (err) {
       console.error("Failed to stop recording:", err);
     }
   };
 
-  // 4. Listing & Sorting Logic
+  // only called on mount — old files have no metering data
   const listRecordings = async () => {
     const dir = FileSystem.cacheDirectory + "Audio/";
     const files = await FileSystem.readDirectoryAsync(dir);
-
     if (files.length === 0) return;
 
     const filesWithInfo = await Promise.all(
@@ -110,10 +134,9 @@ export default function MemosScreen() {
       }),
     );
 
-    // Keep your exact sorting logic
     const sorted = filesWithInfo
       .sort((a, b) => b.modificationTime - a.modificationTime)
-      .map((f) => f.uri);
+      .map((f) => ({ uri: f.uri, metering: [] as number[] }));
 
     setMemos(sorted);
   };
@@ -125,22 +148,42 @@ export default function MemosScreen() {
     return `${minutes}:${seconds.toString().padStart(2, "0")}`;
   };
 
-  const animatedStyle = useAnimatedStyle(() => ({
-    width: withTiming(recorderState.isRecording ? 40 : 50, { duration: 100 }),
-    height: withTiming(recorderState.isRecording ? 40 : 50, { duration: 100 }),
-    borderRadius: withTiming(recorderState.isRecording ? 10 : 50, {
+  const animatedRecordButton = useAnimatedStyle(() => ({
+    width: withTiming(isRecordingValue.value ? "60%" : "100%", {
+      duration: 100,
+    }),
+    borderRadius: withTiming(isRecordingValue.value ? 5 : 35, {
       duration: 100,
     }),
   }));
+
+  const animatedRecordWave = useAnimatedStyle(() => {
+    const size = withTiming(
+      interpolate(metering.value, [-160, -60, 0], [0, 0, -30]),
+      { duration: 100 },
+    );
+    return {
+      top: size,
+      bottom: size,
+      left: size,
+      right: size,
+      backgroundColor: `rgba(255, 45, 0, ${interpolate(
+        metering.value,
+        [-160, -60, -10],
+        [0.7, 0.3, 0.7],
+      )})`,
+    };
+  });
 
   return (
     <View style={styles.container}>
       <FlatList
         data={memos}
-        keyExtractor={(item) => item}
+        keyExtractor={(item) => item.uri}
         renderItem={({ item }) => (
           <MemoItem
-            uri={item}
+            uri={item.uri}
+            metering={item.metering}
             activeMemoUri={activeMemoUri}
             setActiveMemoUri={setActiveMemoUri}
           />
@@ -149,22 +192,22 @@ export default function MemosScreen() {
       />
 
       <View style={styles.footer}>
-        <TouchableOpacity
-          onPress={recorderState.isRecording ? stopRecording : record}
-          activeOpacity={0.5}
-        >
-          <View style={styles.recordButton}>
-            <Animated.View
-              style={[{ backgroundColor: "#e03816" }, animatedStyle]}
-            />
-          </View>
-        </TouchableOpacity>
+        <Text style={styles.duration}>
+          {recorderState.isRecording
+            ? formatDuration(recorderState.durationMillis)
+            : " "}
+        </Text>
 
-        {recorderState.isRecording && (
-          <Text style={styles.duration}>
-            {formatDuration(recorderState.durationMillis)}
-          </Text>
-        )}
+        <View>
+          <Animated.View style={[styles.recordWave, animatedRecordWave]} />
+          <TouchableOpacity
+            style={styles.recordButton}
+            onPress={recorderState.isRecording ? stopRecording : record}
+            activeOpacity={0.7}
+          >
+            <Animated.View style={[styles.redCircle, animatedRecordButton]} />
+          </TouchableOpacity>
+        </View>
       </View>
     </View>
   );
@@ -177,25 +220,48 @@ const styles = StyleSheet.create({
   },
   footer: {
     backgroundColor: "#fff",
-    height: 180,
+    height: 160,
     justifyContent: "center",
     alignItems: "center",
     borderTopWidth: 1,
     borderTopColor: "#ddd",
-  },
-  recordButton: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    borderWidth: 3,
-    borderColor: "#e03816",
-    justifyContent: "center",
-    alignItems: "center",
+    gap: 12,
   },
   duration: {
-    marginTop: 10,
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: "700",
     color: "#e03816",
+    height: 28,
+    textAlign: "center",
+  },
+  recordButton: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    borderWidth: 3,
+    borderColor: "orangered",
+    padding: 3,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "white",
+  },
+  recordWave: {
+    position: "absolute",
+    top: -20,
+    bottom: -20,
+    left: -20,
+    right: -20,
+    borderRadius: 1000,
+    backgroundColor: "#e0381615",
+    shadowColor: "#e03816",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.9,
+    shadowRadius: 16,
+    elevation: 12,
+  },
+  redCircle: {
+    backgroundColor: "orangered",
+    aspectRatio: 1,
+    borderRadius: 35,
   },
 });
