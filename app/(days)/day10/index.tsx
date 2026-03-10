@@ -1,20 +1,22 @@
 // app/(days)/day4/index.tsx
 import DayContent from "@/components/core/day-content";
-import { day6Content } from "@/constants/days/day6";
-import { useRouter } from "expo-router";
+import { day10Content } from "@/constants/days/day10";
+import { RelativePathString, useRouter } from "expo-router";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
-export default function Day6() {
+export default function Day10() {
   const router = useRouter();
   return (
     <View style={styles.container}>
-      <DayContent content={day6Content} />
+      <DayContent content={day10Content} />
       <TouchableOpacity
         style={styles.button}
         activeOpacity={0.5}
-        onPress={() => router.push("/(days)/day6/memos")}
+        onPress={() =>
+          router.push("/(days)/day10/payment" as RelativePathString)
+        }
       >
-        <Text style={styles.buttonText}>Memos App</Text>
+        <Text style={styles.buttonText}>Biometrics</Text>
       </TouchableOpacity>
     </View>
   );
