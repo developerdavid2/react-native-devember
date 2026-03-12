@@ -104,7 +104,7 @@ export default function Payment() {
       if (result.success) {
         setTxState("success");
         setLastAction(
-          `✅ ${tx.label} of ${tx.amount} confirmed via ${capabilities.label}`,
+          `${tx.label} of ${tx.amount} confirmed via ${capabilities.label}`,
         );
         setTimeout(() => setTxState("idle"), 3000);
         return;
