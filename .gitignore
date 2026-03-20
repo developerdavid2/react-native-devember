@@ -47,3 +47,4 @@ app-example
 
 #only for eas upload, remove after uploading
 devember-588bc-firebase-adminsdk-*.json.idea
+devember-588bc-firebase-adminsdk-*.json
