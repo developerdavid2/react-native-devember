@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "465475300591",
+    "project_id": "devember-588bc",
+    "storage_bucket": "devember-588bc.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:465475300591:android:005cd6c742a88f5ad1bf1a",
+        "android_client_info": {
+          "package_name": "com.developerdavid2.reactnativedevember"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCehM5rAEcwZM1Uf3MnZUQk2YiaPzDMROk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

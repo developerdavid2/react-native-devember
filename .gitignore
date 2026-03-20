@@ -1,5 +1,8 @@
 # Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
 
+
+.idea
+
 # dependencies
 node_modules/
 
@@ -41,3 +44,6 @@ app-example
 # generated native folders
 /ios
 /android
+
+#only for eas upload, remove after uploading
+devember-588bc-firebase-adminsdk-*.json.idea
