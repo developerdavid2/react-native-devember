@@ -43,4 +43,4 @@ app-example
 /android
 
 #only for eas upload, remove after uploading
-devember-588bc-firebase-adminsdk-*.json
+devember-588bc-firebase-adminsdk-*.json.idea
